@@ -304,7 +304,7 @@ body {
   }
 
   /* stylelint-disable-next-line media-query-no-invalid */
-  @media -moz-pref("sidebar.verticalTabs") {
+  @media -moz-pref("sidebar.verticalTabs") and not (display-mode: picture-in-picture) {
     :root:not([taskbartab]) &:is([type="pre-tabs"], [type="post-tabs"]) {
       display: none;
     }
@@ -337,6 +337,13 @@ body {
   position: relative;
 
   :root:not([customtitlebar], [sizemode="fullscreen"]) & {
+    display: none;
+  }
+}
+
+@media (display-mode: picture-in-picture) {
+  .titlebar-max,
+  .titlebar-min {
     display: none;
   }
 }

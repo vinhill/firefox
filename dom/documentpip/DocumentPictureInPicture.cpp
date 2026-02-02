@@ -176,10 +176,10 @@ static CSSIntRect CalcInitialExtent(const CSSIntRect& aScreen,
                                     const CSSIntSize& aSize) {
   // aSize is the inner size not including browser UI. But we need the outer
   // size for calculating where the top left corner of the PiP should be
-  // initially. For now use a guess of ~80px for the browser UI?
+  // initially. For now use a guess of ~40px for the browser UI?
   const CSSIntPoint pos = {
       std::max(aScreen.X(), aScreen.XMost() - aSize.width - 100),
-      std::max(aScreen.Y(), aScreen.YMost() - aSize.height - 100 - 80)};
+      std::max(aScreen.Y(), aScreen.YMost() - aSize.height - 100 - 40)};
   return CSSIntRect(pos, aSize);
 }
 

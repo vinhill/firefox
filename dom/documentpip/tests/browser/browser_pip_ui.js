@@ -65,21 +65,44 @@ add_task(async function pip_ui_buttons() {
   // this test fails, implementers should consider whether it makes
   // sense to show this button for this kind of window.
   const expectedButtons = [
-    "trust-icon-container",
-    "document-pip-return-to-opener-button",
+    "#trust-icon-container",
+    "#document-pip-return-to-opener-button",
+    ".titlebar-close",
   ];
 
   buttons.forEach(btn => {
-    const idx = expectedButtons.indexOf(btn.id);
-    Assert.greater(
-      idx,
-      -1,
-      `Expected '${btn.id}' to be ${idx > 0 ? "" : "not"} be visible for PiP`
+    const match = expectedButtons.find(sel => btn.matches(sel));
+    Assert.ok(
+      !!match,
+      `Expected '<id="${btn.id}" class="${btn.classList}">' to be ${match ? "" : "not"} be visible for PiP`
     );
-    expectedButtons.splice(idx, 1);
   });
 
-  Assert.deepEqual(expectedButtons, [], "Expected buttons to be visible");
+  Assert.equal(
+    expectedButtons.length,
+    buttons.length,
+    "Should have the expected number of visible buttons"
+  );
+});
+
+add_task(async function pip_titlebar() {
+  ok(
+    chromePiP.document.getElementById("TabsToolbar").collapsed,
+    "PiP should have no tab bar"
+  );
+
+  ok(
+    chromePiP.document.getElementById("nav-bar").matches(".browser-titlebar"),
+    "PiP should use a custom titlebar"
+  );
+
+  // With collapsed toolbar, we need some spacer next to the UI elements so the
+  // user can move the window around.
+  const spacers = Array.from(
+    chromePiP.document.querySelectorAll(".titlebar-spacer")
+  );
+
+  ok(spacers.some(isVisible), "At least one spacer is visible");
 });
 
 add_task(async function pip_reload_disabled() {

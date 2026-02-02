@@ -9985,9 +9985,10 @@ var TabBarVisibility = {
   _initialUpdateDone: false,
 
   update(force = false) {
-    let isPopup = !window.toolbar.visible;
+    let isDocumentPiP = window.browsingContext.isDocumentPiP;
+    let isPopup = !window.toolbar.visible && !isDocumentPiP;
     let isTaskbarTab = document.documentElement.hasAttribute("taskbartab");
-    let isSingleTabWindow = isPopup || isTaskbarTab;
+    let isSingleTabWindow = isPopup || isTaskbarTab || isDocumentPiP;
 
     let hasVerticalTabs =
       !isSingleTabWindow &&

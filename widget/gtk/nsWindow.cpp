@@ -4263,6 +4263,11 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
     gtk_window_set_decorated(GTK_WINDOW(mShell), false);
   }
 
+  if (mPiPType == PiPType::DocumentPiP) {
+    // Needs to be true from the beginning to avoid wrong CSD margins.
+    SetCustomTitlebar(true);
+  }
+
   // Ensure gfxPlatform is initialized, since that is what initializes
   // gfxVars, used below.
   (void)gfxPlatform::GetPlatform();
