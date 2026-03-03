@@ -4523,7 +4523,8 @@ impl CascadeData {
                 | CssRule::StartingStyle(..)
                 | CssRule::AppearanceBase(..)
                 | CssRule::CustomMedia(..)
-                | CssRule::PositionTry(..) => {
+                | CssRule::PositionTry(..)
+                | CssRule::ViewTransition(..) => {
                     // Not affected by device changes. @custom-media is handled by the potential
                     // @media rules referencing it being handled.
                     continue;

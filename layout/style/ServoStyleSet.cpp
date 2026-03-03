@@ -50,6 +50,7 @@
 #include "mozilla/dom/CSSStartingStyleRule.h"
 #include "mozilla/dom/CSSStyleRule.h"
 #include "mozilla/dom/CSSSupportsRule.h"
+#include "mozilla/dom/CSSViewTransitionRule.h"
 #include "mozilla/dom/DocumentInlines.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ElementInlines.h"
@@ -1027,6 +1028,7 @@ static Maybe<StyleCssRuleRef> ToRuleRef(css::Rule& aRule) {
     CASE_FOR(PositionTry, PositionTry)
     CASE_FOR(NestedDeclarations, NestedDeclarations)
     CASE_FOR(Namespace, Namespace)
+    CASE_FOR(ViewTransition, ViewTransition)
 #undef CASE_FOR
     case StyleCssRuleType::Keyframe:
       // No equivalent.
@@ -1077,6 +1079,7 @@ void ServoStyleSet::RuleChangedInternal(StyleSheet& aSheet, css::Rule& aRule,
     CASE_FOR(AppearanceBase, AppearanceBase)
     CASE_FOR(PositionTry, PositionTry)
     CASE_FOR(NestedDeclarations, NestedDeclarations)
+    CASE_FOR(ViewTransition, ViewTransition)
     // @namespace can only be inserted / removed when there are only other
     // @namespace and @import rules, and can't be mutated.
     case StyleCssRuleType::Namespace:
