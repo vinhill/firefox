@@ -1336,6 +1336,12 @@ void ServoStyleSet::AppendFontFaceRules(
   Servo_StyleSet_GetFontFaceRules(mRawData.get(), &aArray);
 }
 
+already_AddRefed<StyleViewTransitionRule>
+ServoStyleSet::GetLastViewTransitionRule() {
+  UpdateStylistIfNeeded();
+  return Servo_StyleSet_GetLastViewTransitionRule(mRawData.get()).Consume();
+}
+
 const StyleLockedCounterStyleRule* ServoStyleSet::CounterStyleRuleForName(
     nsAtom* aName) {
   MOZ_ASSERT(!StylistNeedsUpdate());

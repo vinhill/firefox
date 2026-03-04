@@ -114,8 +114,8 @@ use style::stylesheets::{
     CssRuleType, CssRuleTypes, CssRules, CustomMediaCondition, CustomMediaEvaluator,
     CustomMediaRule, DocumentRule, FontFaceRule, FontFeatureValuesRule, FontPaletteValuesRule,
     ImportRule, KeyframesRule, LayerBlockRule, LayerStatementRule, MarginRule, MediaRule,
-    NamespaceRule, NestedDeclarationsRule, Origin, OriginSet, PagePseudoClassFlags, PageRule,
-    PositionTryRule, PropertyRule, SanitizationData, SanitizationKind, ScopeRule,
+    NamespaceRule, NavigationType, NestedDeclarationsRule, Origin, OriginSet, PagePseudoClassFlags,
+    PageRule, PositionTryRule, PropertyRule, SanitizationData, SanitizationKind, ScopeRule,
     StartingStyleRule, StyleRule, StylesheetContents, StylesheetInDocument,
     StylesheetLoader as StyleStylesheetLoader, SupportsRule, UrlExtraData, ViewTransitionRule,
 };
@@ -9698,6 +9698,13 @@ pub extern "C" fn Servo_LayerStatementRule_GetNameAt(
 }
 
 #[no_mangle]
+pub extern "C" fn Servo_ViewTransitionRule_GetNavigationDescriptor(
+    rule: &ViewTransitionRule,
+) -> NavigationType {
+    rule.descriptors.navigation.unwrap_or_default()
+}
+
+#[no_mangle]
 pub extern "C" fn Servo_ViewTransitionRule_GetNavigation(
     rule: &ViewTransitionRule,
     result: &mut nsACString,
@@ -9883,13 +9890,7 @@ pub extern "C" fn Servo_SlowRgbToNearestColorName(
 pub extern "C" fn Servo_ColorNameToRgb(name: &nsACString, out: &mut structs::nscolor) -> bool {
     match cssparser::color::parse_named_color(unsafe { name.as_str_unchecked() }) {
         Ok((r, g, b)) => {
-            *out = AbsoluteColor::new(
-                ColorSpace::Srgb,
-                r,
-                g,
-                b,
-                1.0,
-            ).to_nscolor();
+            *out = AbsoluteColor::new(ColorSpace::Srgb, r, g, b, 1.0).to_nscolor();
             true
         },
         _ => false,
