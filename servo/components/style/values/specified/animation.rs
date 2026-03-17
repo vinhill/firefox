@@ -818,6 +818,17 @@ impl ViewTransitionClassList {
     }
 }
 
+fn parse_non_ua_ident<'i, 't>(input: &mut Parser<'i, 't>, excluding: &[&str]) -> Result<CustomIdent, ParseError<'i>> {
+    let location = input.current_source_location();
+    let ident = input.expect_ident()?;
+
+    if ident.starts_with("-ua-") {
+        Err(location.new_custom_error(StyleParseErrorKind::UnspecifiedError))
+    } else {
+        CustomIdent::from_ident(location, ident, excluding)
+    }
+}
+
 impl Parse for ViewTransitionClassList {
     fn parse<'i, 't>(
         _: &ParserContext,
@@ -830,7 +841,7 @@ impl Parse for ViewTransitionClassList {
         }
 
         Ok(Self(crate::ArcSlice::from_iter(
-            Space::parse(input, |i| CustomIdent::parse(i, &["none"]))?.into_iter(),
+            Space::parse(input, |i| parse_non_ua_ident(i, &["none"]))?.into_iter(),
         )))
     }
 }
