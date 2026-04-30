@@ -1779,6 +1779,12 @@ nsresult nsSHistory::Reload(uint32_t aReloadFlags,
     return NS_OK;
   }
 
+  // Keep this in sync with what CanonicalBrowsingContext::NotifyOnHistoryReload
+  // does for force-reloads.
+  if (IsForceReloadType(loadType)) {
+    RemoveFrameEntries(mEntries[mIndex]);
+  }
+
   nsresult rv =
       LoadEntry(/* aSourceBrowsingContext */ nullptr, mIndex, loadType,
                 HIST_CMD_RELOAD, aLoadResults, /* aSameEpoch */ false,

@@ -53,6 +53,7 @@
 #include "nsISupports.h"
 #include "nsIWebNavigation.h"
 #include "nsDocShell.h"
+#include "nsDocShellLoadTypes.h"
 #include "nsFrameLoader.h"
 #include "nsFrameLoaderOwner.h"
 #include "nsGlobalWindowOuter.h"
@@ -577,12 +578,33 @@ void CanonicalBrowsingContext::GetLoadingSessionHistoryInfoFromParent(
     for (BrowsingContext* sibling : GetParent()->Children()) {
       ++index;
       if (sibling == this) {
-        if (RefPtr entry =
-                parentSHE->GetChildSHEntryIfHasNoDynamicallyAddedChild(index)) {
-          aLoadingInfo.emplace(entry);
-          mLoadingEntries.AppendElement(LoadingSessionHistoryEntry{
-              aLoadingInfo.value().mLoadId, entry.get()});
-          (void)SetHistoryID(entry->DocshellID());
+        bool tookOverSlot = false;
+        if (!StaticPrefs::docshell_shistory_restoreSubframesOnReload() &&
+            parentSHE->Info().LoadType() == LOAD_RELOAD_NORMAL) {
+          bool dynamicallyAddedChild = false;
+          parentSHE->HasDynamicallyAddedChild(&dynamicallyAddedChild);
+          if (!dynamicallyAddedChild) {
+            RefPtr<SessionHistoryEntry> oldChild;
+            parentSHE->GetChildAt(index, getter_AddRefs(oldChild));
+            if (oldChild) {
+              // Recreate the child from its container instead of restoring
+              // it, but adopt its docshell ID so later navigations can still
+              // match it back to this browsing context.
+              (void)SetHistoryID(oldChild->DocshellID());
+              parentSHE->RemoveChild(oldChild);
+            }
+            tookOverSlot = true;
+          }
+        }
+        if (!tookOverSlot) {
+          if (RefPtr entry =
+                  parentSHE->GetChildSHEntryIfHasNoDynamicallyAddedChild(
+                      index)) {
+            aLoadingInfo.emplace(entry);
+            mLoadingEntries.AppendElement(LoadingSessionHistoryEntry{
+                aLoadingInfo.value().mLoadId, entry.get()});
+            (void)SetHistoryID(entry->DocshellID());
+          }
         }
         break;
       }
@@ -1404,21 +1426,33 @@ void CanonicalBrowsingContext::NotifyOnHistoryReload(
     return;
   }
 
+  const uint32_t reloadLoadType =
+      aForceReload ? LOAD_RELOAD_BYPASS_CACHE : LOAD_RELOAD_NORMAL;
+
   if (mActiveEntry) {
+    // Mirrors what nsSHistory::InitiateLoad does on the other reload path, so
+    // GetLoadingSessionHistoryInfoFromParent() can tell a reload is under way
+    // without having to ask the content process.
+    mActiveEntry->SetLoadType(reloadLoadType);
     aLoadState.emplace(WrapMovingNotNull(
         RefPtr{CreateLoadInfo(mActiveEntry, NavigationType::Reload)}));
     aReloadActiveEntry.emplace(true);
     if (aForceReload) {
+      // Keep this in sync with the force-reload branch in nsSHistory::Reload,
+      // which does the same for the other reload path.
       shistory->RemoveFrameEntries(mActiveEntry);
     }
   } else if (!mLoadingEntries.IsEmpty()) {
     const LoadingSessionHistoryEntry& loadingEntry =
         mLoadingEntries.LastElement();
     uint64_t loadId = loadingEntry.mLoadId;
+    loadingEntry.mEntry->SetLoadType(reloadLoadType);
     aLoadState.emplace(WrapMovingNotNull(
         RefPtr{CreateLoadInfo(loadingEntry.mEntry, NavigationType::Reload)}));
     aReloadActiveEntry.emplace(false);
     if (aForceReload) {
+      // Keep this in sync with the force-reload branch in nsSHistory::Reload,
+      // which does the same for the other reload path.
       SessionHistoryEntry::LoadingEntry* entry =
           SessionHistoryEntry::GetByLoadId(loadId);
       if (entry) {

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Iframe is not restored when container navigates and goes back</title>
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="../resources/helpers.js"></script>
+
+<script>
+"use strict";
+
+// Note: bfcache won't mess with any windows with openers, so it doesn't
+// interfere with these tests.
+
+promise_test(async t => {
+  // Open and wait for load
+  const w = await openWindow("../resources/has-iframe.html", t);
+  const iframe = w.document.querySelector("iframe");
+  const srcURL = iframe.contentWindow.location.href;
+
+  assert_equals(w.history.length, 1);
+
+  await waitToAvoidReplace(t);
+
+  // Navigate the iframe to a different URL.
+  iframe.contentWindow.location.href = "/common/blank.html?navigated";
+  await waitForIframeLoad(iframe);
+
+  assert_equals(w.history.length, 2);
+  assert_not_equals(iframe.contentWindow.location.href, srcURL);
+
+  // Navigate the container away and back
+  w.location.href = "../resources/post-top-opener-on-load.html";
+  await waitForMessage(w);
+  assert_equals(w.history.length, 3);
+  w.history.back();
+  await waitForMessage(w);
+
+  const iframeAgain = w.document.querySelector("iframe");
+
+  assert_not_equals(iframeAgain.contentWindow.location.href, srcURL,
+    "iframe must be at its JS-navigated URL after container is recreated from network");
+}, "iframe is restored to JS-navigated URL when container navigates and goes back");
+
+promise_test(async t => {
+  // Open and wait for load
+  const w = await openWindow("../resources/has-iframe.html", t);
+  const iframe = w.document.querySelector("iframe");
+  const srcURL = iframe.contentWindow.location.href;
+
+  assert_equals(w.history.length, 1);
+
+  await waitToAvoidReplace(t);
+
+  // Navigate the iframe to a different URL.
+  iframe.contentWindow.location.href = "/common/blank.html?navigated";
+  await waitForIframeLoad(iframe);
+
+  assert_equals(w.history.length, 2);
+  assert_not_equals(iframe.contentWindow.location.href, srcURL);
+
+  // Reload, has-iframe.html will send a message on load.
+  w.location.reload();
+  await waitForMessage(w);
+  assert_equals(w.history.length, 2);
+
+  const iframeAgain = w.document.querySelector("iframe");
+
+  assert_equals(iframeAgain.contentWindow.location.href, srcURL,
+    "iframe must be at its src URL after container is recreated from network");
+}, "iframe is not restored to JS-navigated URL when container is reloaded");
+
+promise_test(async t => {
+  // Open and wait for load. The iframe has no src, so it never navigates away
+  // from its initial about:blank document.
+  const w = await openWindow("../resources/has-initial-about-blank-iframe.html", t);
+
+  assert_equals(w.history.length, 1);
+
+  await waitToAvoidReplace(t);
+  await waitToAvoidReplace(t);
+
+  // Navigate the container away and back
+  w.location.href = "../resources/post-top-opener-on-load.html";
+  await waitForMessage(w);
+  assert_equals(w.history.length, 2);
+  w.history.back();
+  await waitForMessage(w);
+
+  const iframeAgain = w.document.querySelector("iframe");
+
+  assert_equals(iframeAgain.contentWindow.location.href, "about:blank");
+  assert_true(w.initialAboutBlankWasSync);
+}, "iframe with initial about:blank is restored correctly when container navigates and goes back");
+</script>

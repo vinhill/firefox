@@ -154,7 +154,7 @@ class SessionHistoryInfo {
 
   void FillLoadInfo(nsDocShellLoadState& aLoadState) const;
 
-  uint32_t LoadType() { return mLoadType; }
+  uint32_t LoadType() const { return mLoadType; }
 
   void SetSaveLayoutStateFlag(bool aSaveLayoutStateFlag);
 
