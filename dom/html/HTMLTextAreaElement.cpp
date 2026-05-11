@@ -393,6 +393,7 @@ void HTMLTextAreaElement::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
   // Don't dispatch a second select event if we are already handling
   // one.
   if (aVisitor.mEvent->mMessage == eFormSelect) {
+    aVisitor.mWantsPostHandleEvent = true;
     if (mHandlingSelect) {
       return;
     }
@@ -444,6 +445,8 @@ void HTMLTextAreaElement::FireChangeEventIfNeeded() {
 nsresult HTMLTextAreaElement::PostHandleEvent(EventChainPostVisitor& aVisitor) {
   if (aVisitor.mEvent->mMessage == eFormSelect) {
     mHandlingSelect = false;
+  } else {
+    MOZ_ASSERT_UNREACHABLE("Didn't want post handle");
   }
   return NS_OK;
 }

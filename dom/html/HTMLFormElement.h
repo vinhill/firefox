@@ -570,6 +570,10 @@ class HTMLFormElement final : public nsGenericHTMLElement {
   void ReportInvalidUnfocusableElements(
       const nsTArray<RefPtr<Element>>&& aInvalidElements);
 
+  // Whether the event applies to this form, or EventTarget methods can be
+  // skipped for it.
+  MOZ_ALWAYS_INLINE bool ParticipatesInEvent(EventChainVisitor& aVisitor) const;
+
   ~HTMLFormElement();
 };
 

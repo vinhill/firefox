@@ -76,7 +76,25 @@ void HTMLLabelElement::Focus(const FocusOptions& aOptions,
   }
 }
 
+MOZ_ALWAYS_INLINE static bool WantsPostHandleEvent(
+    EventChainVisitor& aVisitor) {
+  switch (aVisitor.mEvent->mMessage) {
+    case ePointerClick:
+    case eMouseDown:
+      return true;
+    default:
+      return false;
+  }
+}
+
+void HTMLLabelElement::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
+  aVisitor.mWantsPostHandleEvent = WantsPostHandleEvent(aVisitor);
+  nsGenericHTMLElement::GetEventTargetParent(aVisitor);
+}
+
 nsresult HTMLLabelElement::PostHandleEvent(EventChainPostVisitor& aVisitor) {
+  MOZ_ASSERT(WantsPostHandleEvent(aVisitor));
+
   WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
   if (mHandlingEvent ||
       (!(mouseEvent && mouseEvent->IsLeftClickEvent()) &&

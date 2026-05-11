@@ -2191,6 +2191,16 @@ void nsGlobalWindowInner::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
       break;
   }
 
+  switch (aVisitor.mEvent->mMessage) {
+    case eResize:
+    case eUnload:
+    case eLoad:
+      aVisitor.mWantsPostHandleEvent = true;
+      break;
+    default:
+      break;
+  }
+
   aVisitor.SetParentTarget(GetParentTarget(), true);
 }
 
@@ -2419,16 +2429,6 @@ void nsGlobalWindowInner::FireFrameLoadEvent() {
 }
 
 nsresult nsGlobalWindowInner::PostHandleEvent(EventChainPostVisitor& aVisitor) {
-  // Return early if there is nothing to do.
-  switch (aVisitor.mEvent->mMessage) {
-    case eResize:
-    case eUnload:
-    case eLoad:
-      break;
-    default:
-      return NS_OK;
-  }
-
   /* mChromeEventHandler and mContext go dangling in the middle of this
    function under some circumstances (events that destroy the window)
    without this addref. */
@@ -2437,6 +2437,7 @@ nsresult nsGlobalWindowInner::PostHandleEvent(EventChainPostVisitor& aVisitor) {
   nsCOMPtr<nsIScriptContext> kungFuDeathGrip2(GetContextInternal());
   (void)kungFuDeathGrip2;  // These aren't referred to through the function
 
+  // XXX refactor to ensure we only get these messages
   if (aVisitor.mEvent->mMessage == eResize) {
     mIsHandlingResizeEvent = false;
   } else if (aVisitor.mEvent->mMessage == eUnload &&

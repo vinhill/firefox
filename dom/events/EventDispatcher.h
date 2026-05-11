@@ -135,6 +135,7 @@ class MOZ_STACK_CLASS EventChainPreVisitor final : public EventChainVisitor {
         mWantsWillHandleEvent(false),
         mMayHaveListenerManager(true),
         mWantsPreHandleEvent(false),
+        mWantsPostHandleEvent(false),
         mRootOfClosedTree(false),
         mItemInShadowTree(false),
         mParentIsSlotInClosedTree(false),
@@ -157,6 +158,7 @@ class MOZ_STACK_CLASS EventChainPreVisitor final : public EventChainVisitor {
     mWantsWillHandleEvent = false;
     mMayHaveListenerManager = true;
     mWantsPreHandleEvent = false;
+    mWantsPostHandleEvent = false;
     mRootOfClosedTree = false;
     mItemInShadowTree = false;
     mParentIsSlotInClosedTree = false;
@@ -233,6 +235,12 @@ class MOZ_STACK_CLASS EventChainPreVisitor final : public EventChainVisitor {
    * false;
    */
   bool mWantsPreHandleEvent;
+
+  /**
+   * Whether or not EventTarget::PostHandleEvent will be called. Default is
+   * false;
+   */
+  bool mWantsPostHandleEvent;
 
   /**
    * True if the current target is either closed ShadowRoot or root of

@@ -544,54 +544,64 @@ static bool CanSubmit(WidgetEvent& aEvent) {
          aEvent.IsTrusted();
 }
 
-void HTMLFormElement::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
-  aVisitor.mWantsWillHandleEvent = true;
-  if (aVisitor.mEvent->mOriginalTarget == static_cast<nsIContent*>(this) &&
-      CanSubmit(*aVisitor.mEvent)) {
-    uint32_t msg = aVisitor.mEvent->mMessage;
-    if (msg == eFormSubmit) {
-      if (mGeneratingSubmit) {
-        aVisitor.mCanHandle = false;
-        return;
-      }
-      mGeneratingSubmit = true;
+bool HTMLFormElement::ParticipatesInEvent(EventChainVisitor& aVisitor) const {
+  return aVisitor.mEvent->mOriginalTarget ==
+             static_cast<const nsIContent*>(this) &&
+         (aVisitor.mEvent->mMessage == eFormSubmit ||
+          aVisitor.mEvent->mMessage == eFormReset);
+}
 
-      // XXXedgar, the untrusted event would trigger form submission, in this
-      // case, form need to handle defer flag and flushing pending submission by
-      // itself. This could be removed after Bug 1370630.
-      if (!aVisitor.mEvent->IsTrusted()) {
-        // let the form know that it needs to defer the submission,
-        // that means that if there are scripted submissions, the
-        // latest one will be deferred until after the exit point of the
-        // handler.
-        mDeferSubmission = true;
+void HTMLFormElement::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
+  if (ParticipatesInEvent(aVisitor)) {
+    aVisitor.mWantsWillHandleEvent = true;
+    aVisitor.mWantsPostHandleEvent = true;
+
+    if (CanSubmit(*aVisitor.mEvent)) {
+      uint32_t msg = aVisitor.mEvent->mMessage;
+      if (msg == eFormSubmit) {
+        if (mGeneratingSubmit) {
+          aVisitor.mCanHandle = false;
+          return;
+        }
+        mGeneratingSubmit = true;
+
+        // XXXedgar, the untrusted event would trigger form submission, in this
+        // case, form need to handle defer flag and flushing pending submission
+        // by itself. This could be removed after Bug 1370630.
+        if (!aVisitor.mEvent->IsTrusted()) {
+          // let the form know that it needs to defer the submission,
+          // that means that if there are scripted submissions, the
+          // latest one will be deferred until after the exit point of the
+          // handler.
+          mDeferSubmission = true;
+        }
+      } else if (msg == eFormReset) {
+        if (mGeneratingReset) {
+          aVisitor.mCanHandle = false;
+          return;
+        }
+        mGeneratingReset = true;
       }
-    } else if (msg == eFormReset) {
-      if (mGeneratingReset) {
-        aVisitor.mCanHandle = false;
-        return;
-      }
-      mGeneratingReset = true;
     }
   }
   nsGenericHTMLElement::GetEventTargetParent(aVisitor);
 }
 
 void HTMLFormElement::WillHandleEvent(EventChainPostVisitor& aVisitor) {
+  MOZ_ASSERT(ParticipatesInEvent(aVisitor));
+
   // If this is the bubble stage and there is a nested form below us which
   // received a submit event we do *not* want to handle the submit event
   // for this form too.
-  if ((aVisitor.mEvent->mMessage == eFormSubmit ||
-       aVisitor.mEvent->mMessage == eFormReset) &&
-      aVisitor.mEvent->mFlags.mInBubblingPhase &&
-      aVisitor.mEvent->mOriginalTarget != static_cast<nsIContent*>(this)) {
+  if (aVisitor.mEvent->mFlags.mInBubblingPhase) {
     aVisitor.mEvent->StopPropagation();
   }
 }
 
 nsresult HTMLFormElement::PostHandleEvent(EventChainPostVisitor& aVisitor) {
-  if (aVisitor.mEvent->mOriginalTarget == static_cast<nsIContent*>(this) &&
-      CanSubmit(*aVisitor.mEvent)) {
+  MOZ_ASSERT(ParticipatesInEvent(aVisitor));
+
+  if (CanSubmit(*aVisitor.mEvent)) {
     EventMessage msg = aVisitor.mEvent->mMessage;
     if (aVisitor.mEventStatus == nsEventStatus_eIgnore) {
       switch (msg) {
@@ -630,6 +640,7 @@ nsresult HTMLFormElement::PostHandleEvent(EventChainPostVisitor& aVisitor) {
       mGeneratingReset = false;
     }
   }
+
   return NS_OK;
 }
 

@@ -98,11 +98,9 @@ XULResizerElement::Direction XULResizerElement::GetDirection() {
   return directions[index];
 }
 
-nsresult XULResizerElement::PostHandleEvent(EventChainPostVisitor& aVisitor) {
-  if (aVisitor.mEventStatus != nsEventStatus_eConsumeNoDefault) {
-    PostHandleEventInternal(aVisitor);
-  }
-  return nsXULElement::PostHandleEvent(aVisitor);
+void XULResizerElement::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
+  aVisitor.mWantsPostHandleEvent = true;
+  nsXULElement::GetEventTargetParent(aVisitor);
 }
 
 Maybe<nsSize> XULResizerElement::GetCurrentSize() const {
@@ -119,8 +117,11 @@ Maybe<nsSize> XULResizerElement::GetCurrentSize() const {
                   : frame->GetRect().Size());
 }
 
-void XULResizerElement::PostHandleEventInternal(
-    EventChainPostVisitor& aVisitor) {
+nsresult XULResizerElement::PostHandleEvent(EventChainPostVisitor& aVisitor) {
+  if (aVisitor.mEventStatus == nsEventStatus_eConsumeNoDefault) {
+    return NS_OK;
+  }
+
   bool doDefault = true;
   const WidgetEvent& event = *aVisitor.mEvent;
   switch (event.mMessage) {
@@ -270,6 +271,8 @@ void XULResizerElement::PostHandleEventInternal(
   if (!doDefault) {
     aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
   }
+
+  return NS_OK;
 }
 
 nsIContent* XULResizerElement::GetContentToResize() const {

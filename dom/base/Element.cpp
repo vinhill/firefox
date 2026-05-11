@@ -4492,12 +4492,22 @@ bool Element::CheckHandleEventForLinksPrecondition(
 
 void Element::GetEventTargetParentForLinks(EventChainPreVisitor& aVisitor) {
   // Optimisation: return early if this event doesn't interest us.
-  // IMPORTANT: this switch and the switch below it must be kept in sync!
   switch (aVisitor.mEvent->mMessage) {
+    case eMouseDown:
+    case ePointerClick:
+    case ePointerAuxClick:
+    case eLegacyDOMActivate:
+    case eKeyPress:
+      // IMPORTANT: this case and the switch in PostHandleEventForLinks must be
+      // kept in sync!
+      aVisitor.mWantsPostHandleEvent =
+          CheckHandleEventForLinksPrecondition(aVisitor);
+      return;
     case eMouseOver:
     case eFocus:
     case eMouseOut:
     case eBlur:
+      // IMPORTANT: this case and the switch below it must be kept in sync!
       break;
     default:
       return;
@@ -4592,19 +4602,6 @@ void Element::DispatchChromeOnlyLinkClickEvent(
 }
 
 nsresult Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor) {
-  // Optimisation: return early if this event doesn't interest us.
-  // IMPORTANT: this switch and the switch below it must be kept in sync!
-  switch (aVisitor.mEvent->mMessage) {
-    case eMouseDown:
-    case ePointerClick:
-    case ePointerAuxClick:
-    case eLegacyDOMActivate:
-    case eKeyPress:
-      break;
-    default:
-      return NS_OK;
-  }
-
   // Make sure we meet the preconditions before continuing
   if (!CheckHandleEventForLinksPrecondition(aVisitor)) {
     return NS_OK;
@@ -4742,7 +4739,7 @@ nsresult Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor) {
     default:
       // switch not in sync with the optimization switch earlier in this
       // function
-      MOZ_ASSERT_UNREACHABLE("switch statements not in sync");
+      MOZ_ASSERT_UNREACHABLE("Does not want post handle");
       return NS_ERROR_UNEXPECTED;
   }
 

@@ -3342,6 +3342,8 @@ void HTMLInputElement::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
     return;
   }
 
+  aVisitor.mWantsPostHandleEvent = true;
+
   // Initialize the editor if needed.
   if (NeedToInitializeEditorForEvent(aVisitor)) {
     if (auto* state = GetTextControlState()) {
