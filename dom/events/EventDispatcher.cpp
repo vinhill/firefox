@@ -328,7 +328,7 @@ class EventTargetChainItem {
   void LegacyCanceledActivationBehavior(EventChainPostVisitor& aVisitor);
 
   /**
-   * Copies mItemFlags and mItemData to aVisitor.
+   * Copies mItemFlags to aVisitor.
    * Calls PreHandleEvent for those items which called SetWantsPreHandleEvent.
    */
   MOZ_CAN_RUN_SCRIPT void PreHandleEvent(EventChainVisitor& aVisitor);
@@ -372,7 +372,7 @@ class EventTargetChainItem {
   }
 
   /**
-   * Copies mItemFlags and mItemData to aVisitor and calls PostHandleEvent.
+   * Copies mItemFlags to aVisitor and calls PostHandleEvent.
    */
   MOZ_CAN_RUN_SCRIPT void PostHandleEvent(EventChainPostVisitor& aVisitor);
 
@@ -442,16 +442,16 @@ void EventTargetChainItem::GetEventTargetParent(
   SetRetargetedRelatedTarget(aVisitor.mRetargetedRelatedTarget);
   SetRetargetedTouchTarget(std::move(aVisitor.mRetargetedTouchTargets));
   mItemFlags = aVisitor.mItemFlags;
-  mItemData = aVisitor.mItemData;
+  mItemData = aVisitor.mItemData.forget();
 }
 
 void EventTargetChainItem::LegacyPreActivationBehavior(
     EventChainVisitor& aVisitor) {
   aVisitor.mItemFlags = mItemFlags;
-  aVisitor.mItemData = mItemData;
+  // We don't copy mItemData because no overrides currently use it.
   mTarget->LegacyPreActivationBehavior(aVisitor);
   mItemFlags = aVisitor.mItemFlags;
-  mItemData = aVisitor.mItemData;
+  mItemData = aVisitor.mItemData.forget();
 }
 
 void EventTargetChainItem::PreHandleEvent(EventChainVisitor& aVisitor) {
@@ -459,10 +459,9 @@ void EventTargetChainItem::PreHandleEvent(EventChainVisitor& aVisitor) {
     return;
   }
   aVisitor.mItemFlags = mItemFlags;
-  aVisitor.mItemData = mItemData;
+  // Don't copy mItemData because no overrides currently use it.
   (void)mTarget->PreHandleEvent(aVisitor);
   MOZ_ASSERT(mItemFlags == aVisitor.mItemFlags);
-  MOZ_ASSERT(mItemData == aVisitor.mItemData);
 }
 
 void EventTargetChainItem::ActivationBehavior(EventChainPostVisitor& aVisitor) {
@@ -470,7 +469,6 @@ void EventTargetChainItem::ActivationBehavior(EventChainPostVisitor& aVisitor) {
   aVisitor.mItemData = mItemData;
   mTarget->ActivationBehavior(aVisitor);
   MOZ_ASSERT(mItemFlags == aVisitor.mItemFlags);
-  MOZ_ASSERT(mItemData == aVisitor.mItemData);
 }
 
 void EventTargetChainItem::LegacyCanceledActivationBehavior(
@@ -484,7 +482,7 @@ void EventTargetChainItem::LegacyCanceledActivationBehavior(
 
 void EventTargetChainItem::PostHandleEvent(EventChainPostVisitor& aVisitor) {
   aVisitor.mItemFlags = mItemFlags;
-  aVisitor.mItemData = mItemData;
+  // Don't copy mItemData because no overrides currently use it.
   mTarget->PostHandleEvent(aVisitor);
   MOZ_ASSERT(mItemFlags == aVisitor.mItemFlags);
   MOZ_ASSERT(mItemData == aVisitor.mItemData);
