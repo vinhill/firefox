@@ -1470,6 +1470,16 @@ Maybe<size_t> EventListenerManager::EventListenerMap::EntryIndexForType(
     nsAtom* aTypeAtom) const {
   MOZ_ASSERT(aTypeAtom);
 
+  // Prefer linear over binary search for small N
+  if (mEntries.Length() <= 16) {
+    for (size_t i = 0; i < mEntries.Length(); ++i) {
+      if (mEntries[i].mTypeAtom == aTypeAtom) {
+        return Some(i);
+      }
+    }
+    return Nothing();
+  }
+
   size_t matchIndexOrInsertionPoint = 0;
   bool foundMatch = BinarySearchIf(mEntries, 0, mEntries.Length(),
                                    ListenerMapEntryComparator(aTypeAtom),
