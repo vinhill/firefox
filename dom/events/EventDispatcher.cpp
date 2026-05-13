@@ -363,8 +363,9 @@ class EventTargetChainItem {
                    "CurrentTarget should be null!");
 
       mManager->HandleEvent(aVisitor.mPresContext, aVisitor.mEvent,
-                            &aVisitor.mDOMEvent, CurrentTarget(),
-                            &aVisitor.mEventStatus, IsItemInShadowTree());
+                            aVisitor.mTypeAtom, &aVisitor.mDOMEvent,
+                            CurrentTarget(), &aVisitor.mEventStatus,
+                            IsItemInShadowTree());
       NS_ASSERTION(aVisitor.mEvent->mCurrentTarget == nullptr,
                    "CurrentTarget should be null!");
     }
@@ -1146,6 +1147,9 @@ nsresult EventDispatcher::Dispatch(EventTarget* aTarget,
   nsCOMPtr<EventTarget> targetForPreVisitor = aEvent->mTarget;
   EventChainPreVisitor preVisitor(aPresContext, aEvent, aDOMEvent, status,
                                   isInAnon, targetForPreVisitor);
+  // The event type atom is fixed for the duration of dispatch; compute it
+  // once here so each chain item's HandleEvent doesn't have to.
+  preVisitor.mTypeAtom = nsContentUtils::GetEventType(aEvent);
   preVisitor.mMaybeUncancelable = IsUncancelableIfOnlyPassiveListeners(aEvent);
   targetEtci->GetEventTargetParent(preVisitor);
 
