@@ -39,7 +39,7 @@ interface EventTarget {
                              optional (AddEventListenerOptions or boolean) options = {},
                              optional boolean? wantsUntrusted = null);
   undefined removeEventListener(DOMString type,
-                                EventListener? listener,
+                                [PassAsJSObject] EventListener? listener,
                                 optional (EventListenerOptions or boolean) options = {});
   [Throws, NeedsCallerType]
   boolean dispatchEvent(Event event);

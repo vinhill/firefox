@@ -38,6 +38,33 @@ class Element;
 using EventListenerHolder =
     dom::CallbackObjectHolder<dom::EventListener, nsIDOMEventListener>;
 
+// Stack-only, non-owning comparison key used by RemoveEventListenerInternal to
+// look up a stored listener. The WebIDL-side identity is just the unwrapped
+// JSObject; the XPCOM side is the native interface pointer. We don't need an
+// EventListener/CallbackObject here because we never invoke the callback at
+// removal time — we only compare for identity.
+class MOZ_STACK_CLASS EventListenerSearchKey {
+ public:
+  // Builds a key from a raw JSObject (the listener as the WebIDL binding sees
+  // it). The constructor unwraps it once so Matches() doesn't have to.
+  explicit EventListenerSearchKey(JSObject* aJSObject);
+  explicit EventListenerSearchKey(nsIDOMEventListener* aXPCOM)
+      : mJSObject(nullptr), mXPCOM(aXPCOM) {}
+  // Convenience builders for C++ callers that already have a higher-level
+  // representation.
+  explicit EventListenerSearchKey(dom::EventListener* aListener);
+  explicit EventListenerSearchKey(const EventListenerHolder& aHolder);
+
+  explicit operator bool() const { return mJSObject || mXPCOM; }
+
+  // Returns true if aStored represents the same listener as this key.
+  bool Matches(const EventListenerHolder& aStored) const;
+
+ private:
+  JSObject* mJSObject;  // pre-unwrapped, may be null
+  nsIDOMEventListener* mXPCOM;
+};
+
 struct EventListenerFlags {
   friend class EventListenerManager;
 
@@ -368,6 +395,11 @@ class EventListenerManager final : public EventListenerManagerBase {
                            const dom::EventListenerOptionsOrBoolean& aOptions) {
     RemoveEventListener(aType, EventListenerHolder(aListener), aOptions);
   }
+  // Fast path used by the WebIDL binding's removeEventListener: the listener
+  // identity is already encoded in aKey, so no transient CallbackObject is
+  // constructed for the lookup.
+  void RemoveEventListener(const nsAString& aType, EventListenerSearchKey aKey,
+                           const dom::EventListenerOptionsOrBoolean& aOptions);
 
   void AddListenerForAllEvents(dom::EventListener* aListener, bool aUseCapture,
                                bool aWantsUntrusted, bool aSystemEventGroup);
@@ -728,7 +760,7 @@ class EventListenerManager final : public EventListenerManagerBase {
                                 const EventListenerFlags& aFlags,
                                 bool aHandler = false, bool aAllEvents = false,
                                 dom::AbortSignal* aSignal = nullptr);
-  void RemoveEventListenerInternal(EventListenerHolder aListener,
+  void RemoveEventListenerInternal(EventListenerSearchKey aKey,
                                    nsAtom* aUserType,
                                    const EventListenerFlags& aFlags,
                                    bool aAllEvents = false);

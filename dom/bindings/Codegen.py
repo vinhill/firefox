@@ -5747,6 +5747,7 @@ def getJSToNativeConversionInfo(
     isCallbackReturnValue=False,
     sourceDescription="value",
     nestingLevel="",
+    passAsJSObject=False,
 ):
     """
     Get a template for converting a JS value to a native object based on the
@@ -6745,6 +6746,10 @@ def getJSToNativeConversionInfo(
         assert descriptor.nativeType != "JSObject"
 
         if descriptor.interface.isCallback():
+            if passAsJSObject:
+                return handleJSObjectType(
+                    type, isMember, failureCode, exceptionCode, sourceDescription
+                )
             (declType, declArgs, conversion) = getCallbackConversionInfo(
                 type, descriptor.interface, isMember, isCallbackReturnValue, isOptional
             )
@@ -7274,6 +7279,11 @@ def getJSToNativeConversionInfo(
         assert not type.treatNonCallableAsNull() or type.nullable()
         assert not type.treatNonObjectAsNull() or type.nullable()
         assert not type.treatNonObjectAsNull() or not type.treatNonCallableAsNull()
+
+        if passAsJSObject:
+            return handleJSObjectType(
+                type, isMember, failureCode, exceptionCode, sourceDescription
+            )
 
         callback = type.unroll().callback
         name = callback.identifier.name
@@ -7836,6 +7846,9 @@ class CGArgumentConverter(CGThing):
             isMember="Variadic" if self.argument.variadic else False,
             allowTreatNonCallableAsNull=self.argument.allowTreatNonCallableAsNull(),
             sourceDescription=self.argDescription,
+            passAsJSObject=(
+                self.argument.getExtendedAttribute("PassAsJSObject") is not None
+            ),
         )
 
         if not self.argument.variadic:
@@ -8814,6 +8827,12 @@ class CGCallGenerator(CGThing):
         args = CGList([CGGeneric(arg) for arg in argsPre], ", ")
         for a, name in arguments:
             arg = CGGeneric(name)
+
+            # [PassAsJSObject] arguments are plain JS::Rooted<JSObject*>;
+            # don't try to wrap them like callback/refcounted args.
+            if a.getExtendedAttribute("PassAsJSObject") is not None:
+                args.append(arg)
+                continue
 
             # Now constify the things that need it
             def needsConst(a):
@@ -10521,6 +10540,9 @@ class FakeArgument:
 
     def canHaveMissingValue(self):
         return False
+
+    def getExtendedAttribute(self, name):
+        return None
 
 
 class CGSetterCall(CGPerSignatureCall):

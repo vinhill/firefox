@@ -5,6 +5,7 @@
 #ifndef mozilla_dom_EventTarget_h_
 #define mozilla_dom_EventTarget_h_
 
+#include "js/TypeDecls.h"
 #include "mozilla/dom/Nullable.h"
 #include "nsAtom.h"
 #include "nsISupports.h"
@@ -67,6 +68,12 @@ class EventTarget : public nsISupports, public nsWrapperCache {
                         const AddEventListenerOptionsOrBoolean& aOptions,
                         const Nullable<bool>& aWantsUntrusted);
   void RemoveEventListener(const nsAString& aType, EventListener* aCallback,
+                           const EventListenerOptionsOrBoolean& aOptions);
+  // WebIDL fast path: the binding passes the listener as a raw JSObject*
+  // to avoid allocating a transient CallbackObject just for the equality
+  // comparison done inside EventListenerManager::RemoveEventListenerInternal.
+  void RemoveEventListener(const nsAString& aType,
+                           JS::Handle<JSObject*> aCallback,
                            const EventListenerOptionsOrBoolean& aOptions);
 
  protected:

@@ -6238,6 +6238,13 @@ class IDLArgument(IDLObjectWithIdentifier):
                 self.type = self.type.withExtendedAttributes([attribute])
             elif identifier == "TreatNonCallableAsNull":
                 self._allowTreatNonCallableAsNull = True
+            elif identifier == "PassAsJSObject":
+                if self.variadic or self.optional or self.dictionaryMember:
+                    raise WebIDLError(
+                        "[PassAsJSObject] is not allowed on variadic, "
+                        "optional, or dictionary-member arguments",
+                        [attribute.location],
+                    )
             elif self.dictionaryMember and (
                 identifier == "ChromeOnly"
                 or identifier == "Func"
@@ -6297,6 +6304,17 @@ class IDLArgument(IDLObjectWithIdentifier):
         if self.type.isUndefined():
             raise WebIDLError(
                 "undefined must not be used as the type of an argument in any circumstance",
+                [self.location],
+            )
+
+        if (
+            self._extendedAttrDict.get("PassAsJSObject")
+            and not self.type.isCallback()
+            and not self.type.isCallbackInterface()
+        ):
+            raise WebIDLError(
+                "[PassAsJSObject] is only allowed on callback or "
+                "callback-interface typed arguments",
                 [self.location],
             )
 

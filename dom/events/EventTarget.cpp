@@ -128,6 +128,16 @@ void EventTarget::RemoveEventListener(
   }
 }
 
+void EventTarget::RemoveEventListener(
+    const nsAString& aType, JS::Handle<JSObject*> aListener,
+    const EventListenerOptionsOrBoolean& aOptions) {
+  EventListenerManager* elm = GetExistingListenerManager();
+  if (elm) {
+    elm->RemoveEventListener(aType, EventListenerSearchKey(aListener),
+                             aOptions);
+  }
+}
+
 void EventTarget::RemoveEventListener(const nsAString& aType,
                                       nsIDOMEventListener* aListener,
                                       bool aUseCapture) {

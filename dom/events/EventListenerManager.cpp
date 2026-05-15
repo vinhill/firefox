@@ -10,6 +10,7 @@
 #include "EventListenerService.h"
 #include "js/ColumnNumber.h"      // JS::ColumnNumberOneOrigin
 #include "js/EnvironmentChain.h"  // JS::EnvironmentChain
+#include "js/Wrapper.h"           // js::UncheckedUnwrap
 #include "js/loader/LoadedScript.h"
 #include "js/loader/ScriptFetchOptions.h"
 #include "mozilla/Assertions.h"
@@ -832,10 +833,50 @@ void EventListenerManager::NotifyEventListenerRemoved(nsAtom* aUserType) {
   }
 }
 
+EventListenerSearchKey::EventListenerSearchKey(JSObject* aJSObject)
+    : mJSObject(aJSObject ? js::UncheckedUnwrap(aJSObject) : nullptr),
+      mXPCOM(nullptr) {}
+
+EventListenerSearchKey::EventListenerSearchKey(dom::EventListener* aListener)
+    : EventListenerSearchKey(aListener ? aListener->CallbackPreserveColor()
+                                       : nullptr) {}
+
+EventListenerSearchKey::EventListenerSearchKey(
+    const EventListenerHolder& aHolder)
+    : mJSObject(nullptr), mXPCOM(nullptr) {
+  if (aHolder.HasWebIDLCallback()) {
+    if (auto* cb = aHolder.GetWebIDLCallback()) {
+      mJSObject = js::UncheckedUnwrap(cb->CallbackPreserveColor());
+    }
+  } else {
+    mXPCOM = aHolder.GetXPCOMCallback();
+  }
+}
+
+bool EventListenerSearchKey::Matches(const EventListenerHolder& aStored) const {
+  if (mJSObject) {
+    if (!aStored.HasWebIDLCallback()) {
+      return false;
+    }
+    auto* cb = aStored.GetWebIDLCallback();
+    if (!cb) {
+      return false;
+    }
+    return js::UncheckedUnwrap(cb->CallbackPreserveColor()) == mJSObject;
+  }
+  if (mXPCOM) {
+    if (aStored.HasWebIDLCallback()) {
+      return false;
+    }
+    return aStored.GetXPCOMCallback() == mXPCOM;
+  }
+  return false;
+}
+
 void EventListenerManager::RemoveEventListenerInternal(
-    EventListenerHolder aListenerHolder, nsAtom* aUserType,
+    EventListenerSearchKey aKey, nsAtom* aUserType,
     const EventListenerFlags& aFlags, bool aAllEvents) {
-  if (!aListenerHolder || (!aUserType && !aAllEvents) || mClearingListeners) {
+  if (!aKey || (!aUserType && !aAllEvents) || mClearingListeners) {
     return;
   }
 
@@ -852,7 +893,7 @@ void EventListenerManager::RemoveEventListenerInternal(
     uint32_t count = listenerArray.Length();
     for (uint32_t i = 0; i < count; ++i) {
       Listener* listener = &listenerArray.ElementAt(i);
-      if (listener->mListener == aListenerHolder &&
+      if (aKey.Matches(listener->mListener) &&
           listener->mFlags.EqualsForRemoval(aFlags)) {
         return Some(i);
       }
@@ -949,7 +990,8 @@ void EventListenerManager::RemoveEventListenerByType(
     const EventListenerFlags& aFlags) {
   RefPtr<nsAtom> atom;
   (void)GetEventMessageAndAtomForListener(aType, getter_AddRefs(atom));
-  RemoveEventListenerInternal(std::move(aListenerHolder), atom, aFlags);
+  RemoveEventListenerInternal(EventListenerSearchKey(aListenerHolder), atom,
+                              aFlags);
 }
 
 EventListenerManager::Listener* EventListenerManager::FindEventHandler(
@@ -1793,6 +1835,25 @@ void EventListenerManager::RemoveEventListener(
   RemoveEventListenerByType(std::move(aListenerHolder), aType, flags);
 }
 
+void EventListenerManager::RemoveEventListener(
+    const nsAString& aType, EventListenerSearchKey aKey,
+    const dom::EventListenerOptionsOrBoolean& aOptions) {
+  if (!aKey) {
+    return;
+  }
+  EventListenerFlags flags;
+  if (aOptions.IsBoolean()) {
+    flags.mCapture = aOptions.GetAsBoolean();
+  } else {
+    const auto& options = aOptions.GetAsEventListenerOptions();
+    flags.mCapture = options.mCapture;
+    flags.mInSystemGroup = options.mMozSystemGroup;
+  }
+  RefPtr<nsAtom> atom;
+  (void)GetEventMessageAndAtomForListener(aType, getter_AddRefs(atom));
+  RemoveEventListenerInternal(aKey, atom, flags);
+}
+
 void EventListenerManager::AddListenerForAllEvents(EventListener* aDOMListener,
                                                    bool aUseCapture,
                                                    bool aWantsUntrusted,
@@ -1810,8 +1871,8 @@ void EventListenerManager::RemoveListenerForAllEvents(
   EventListenerFlags flags;
   flags.mCapture = aUseCapture;
   flags.mInSystemGroup = aSystemEventGroup;
-  RemoveEventListenerInternal(EventListenerHolder(aDOMListener), nullptr, flags,
-                              true);
+  RemoveEventListenerInternal(EventListenerSearchKey(aDOMListener), nullptr,
+                              flags, true);
 }
 
 bool EventListenerManager::HasListenersFor(const nsAString& aEventName) const {
@@ -2385,8 +2446,8 @@ void EventListenerManager::ListenerSignalFollower::RunAbortAlgorithm() {
   if (mListenerManager) {
     RefPtr<EventListenerManager> elm = mListenerManager;
     mListenerManager = nullptr;
-    elm->RemoveEventListenerInternal(std::move(mListener), mTypeAtom, mFlags,
-                                     mAllEvents);
+    elm->RemoveEventListenerInternal(EventListenerSearchKey(mListener),
+                                     mTypeAtom, mFlags, mAllEvents);
   }
 }
 
