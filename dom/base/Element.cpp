@@ -3224,11 +3224,6 @@ void Element::UnbindFromTree(UnbindContext& aContext) {
     }
   }
 
-  // This has to be here, rather than in nsGenericHTMLElement::UnbindFromTree,
-  //  because it has to happen after unsetting the parent pointer, but before
-  //  recursively unbinding the kids.
-  ResetDir(this);
-
   for (nsIContent* child = GetFirstChild(); child;
        child = child->GetNextSibling()) {
     child->UnbindFromTree(aContext);
