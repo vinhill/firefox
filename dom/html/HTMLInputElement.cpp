@@ -3303,14 +3303,19 @@ bool HTMLInputElement::CheckActivationBehaviorPreconditions(
   // cause activation of the input.  That is, if we're a click event, or a
   // DOMActivate that was dispatched directly, this will be set, but if
   // we're a DOMActivate dispatched from click handling, it will not be set.
-  WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent();
-  bool outerActivateEvent =
-      (mouseEvent && mouseEvent->IsLeftClickEvent()) ||
-      (aVisitor.mEvent->mMessage == eLegacyDOMActivate && !mInInternalActivate);
-  if (outerActivateEvent) {
-    aVisitor.mItemFlags |= NS_OUTER_ACTIVATE_EVENT;
+  if (aVisitor.mEvent->mMessage == eLegacyDOMActivate) {
+    MOZ_ASSERT(!aVisitor.mEvent->AsMouseEvent());
+    if (!mInInternalActivate) {
+      aVisitor.mItemFlags |= NS_OUTER_ACTIVATE_EVENT;
+      return true;
+    }
+  } else if (WidgetMouseEvent* mouseEvent = aVisitor.mEvent->AsMouseEvent()) {
+    if (mouseEvent->IsLeftClickEvent()) {
+      aVisitor.mItemFlags |= NS_OUTER_ACTIVATE_EVENT;
+      return true;
+    }
   }
-  return outerActivateEvent;
+  return false;
 }
 
 enum class SpinnerDirection { Up, Down, None };
