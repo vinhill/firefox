@@ -21032,6 +21032,19 @@ void Document::GetConnectedShadowRoots(
   AppendToArray(aOut, mComposedShadowRoots);
 }
 
+void Document::RecalcDirtyShadowRootSlotAssignments() {
+  if (mShadowRootsNeedingSlotRecalc.IsEmpty()) {
+    return;
+  }
+  // Drain the set before iterating so that any re-dirtying during recalc
+  // (e.g. from slotchange event handlers) schedules a fresh flush rather
+  // than being silently dropped.
+  ShadowRootSet roots = std::move(mShadowRootsNeedingSlotRecalc);
+  for (ShadowRoot* root : roots) {
+    root->RecalcSlotAssignment();
+  }
+}
+
 void Document::AddMediaElementWithMSE() {
   if (mMediaElementWithMSECount++ == 0) {
     if (WindowGlobalChild* wgc = GetWindowGlobalChild()) {

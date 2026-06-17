@@ -21,6 +21,7 @@
 #include "mozilla/dom/BindContext.h"
 #include "mozilla/dom/CustomElementRegistry.h"
 #include "mozilla/dom/DirectionalityUtils.h"
+#include "mozilla/dom/Document.h"
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ElementBinding.h"
@@ -36,6 +37,7 @@
 #include "mozilla/dom/UnbindContext.h"
 #include "nsContentUtils.h"
 #include "nsINode.h"
+#include "nsTHashSet.h"
 #include "nsWindowSizes.h"
 
 using namespace mozilla;
@@ -734,50 +736,159 @@ ShadowRoot::SlotInsertionPoint ShadowRoot::SlotInsertionPointFor(
 void ShadowRoot::MaybeReassignContent(nsIContent& aElementOrText) {
   MOZ_ASSERT(aElementOrText.GetParent() == GetHost());
   MOZ_ASSERT(aElementOrText.IsElement() || aElementOrText.IsText());
-  HTMLSlotElement* oldSlot = aElementOrText.GetAssignedSlot();
 
-  SlotInsertionPoint assignment = SlotInsertionPointFor(aElementOrText);
-
-  if (assignment.mSlot == oldSlot) {
-    // Nothing to do here.
+  // For manual slot assignment the ordering isn't derived from tree order, so
+  // keep the existing eager path.
+  if (SlotAssignment() != SlotAssignmentMode::Named) {
+    HTMLSlotElement* oldSlot = aElementOrText.GetAssignedSlot();
+    SlotInsertionPoint assignment = SlotInsertionPointFor(aElementOrText);
+    if (assignment.mSlot == oldSlot) {
+      return;
+    }
+    if (oldSlot) {
+      oldSlot->RemoveManuallyAssignedNode(aElementOrText);
+    }
+    if (assignment.mSlot) {
+      if (assignment.mIndex) {
+        assignment.mSlot->InsertAssignedNode(*assignment.mIndex, aElementOrText);
+      } else {
+        assignment.mSlot->AppendAssignedNode(aElementOrText);
+      }
+    }
     return;
   }
 
-  // The layout invalidation piece for Manual slots is handled in
-  // HTMLSlotElement::Assign
-  if (aElementOrText.IsElement() &&
-      SlotAssignment() == SlotAssignmentMode::Named) {
-    if (Document* doc = GetComposedDoc()) {
-      if (RefPtr<PresShell> presShell = doc->GetPresShell()) {
-        presShell->SlotAssignmentWillChange(*aElementOrText.AsElement(),
-                                            oldSlot, assignment.mSlot);
+  // Named mode: defer the mAssignedNodes rebuild to RecalcSlotAssignment().
+  // All we need to do synchronously is check whether the target slot changes
+  // at all, so we can avoid scheduling unnecessary work.
+  HTMLSlotElement* oldSlot = aElementOrText.GetAssignedSlot();
+  HTMLSlotElement* newSlot = nullptr;
+  if (HasSlots()) {
+    nsAutoString slotName;
+    GetSlotNameFor(aElementOrText, slotName);
+    if (SlotArray* slots = mSlotMap.Get(slotName)) {
+      newSlot = (*slots).ElementAt(0);
+    }
+  }
+
+  if (oldSlot == newSlot) {
+    return;
+  }
+
+  SetNeedsSlotAssignmentRecalc();
+}
+
+void ShadowRoot::SetNeedsSlotAssignmentRecalc() {
+  if (mNeedsSlotAssignmentRecalc) {
+    return;
+  }
+  mNeedsSlotAssignmentRecalc = true;
+  if (Document* doc = GetComposedDoc()) {
+    doc->AddShadowRootNeedingSlotRecalc(this);
+  }
+}
+
+void ShadowRoot::RecalcSlotAssignment() {
+  if (!mNeedsSlotAssignmentRecalc) {
+    return;
+  }
+  mNeedsSlotAssignmentRecalc = false;
+  MOZ_ASSERT(SlotAssignment() == SlotAssignmentMode::Named);
+
+  Element* host = GetHost();
+  if (!host || !HasSlots()) {
+    return;
+  }
+
+  // Step 1: Walk host children in tree order to determine new assignments.
+  AutoTArray<std::pair<nsIContent*, HTMLSlotElement*>, 64> newAssignments;
+  // Track which slots will receive at least one node (for empty-slot detection).
+  nsTHashSet<HTMLSlotElement*> slotsWithNewNodes;
+  for (nsIContent* child = host->GetFirstChild(); child;
+       child = child->GetNextSibling()) {
+    if (!child->IsSlotable()) {
+      continue;
+    }
+    nsAutoString slotName;
+    GetSlotNameFor(*child, slotName);
+    SlotArray* slots = mSlotMap.Get(slotName);
+    if (!slots) {
+      continue;
+    }
+    HTMLSlotElement* slot = slots->ElementAt(0);
+    newAssignments.AppendElement(std::make_pair(child, slot));
+    slotsWithNewNodes.Insert(slot);
+  }
+
+  // Step 2: While mAssignedNodes still reflects the old state, notify the
+  // PresShell for each element that is moving to a different slot.
+  Document* doc = GetComposedDoc();
+  RefPtr<PresShell> presShell = doc ? doc->GetPresShell() : nullptr;
+  nsTHashSet<HTMLSlotElement*> changedSlots;
+
+  for (auto& [child, newSlot] : newAssignments) {
+    HTMLSlotElement* oldSlot = child->GetAssignedSlot();
+    if (oldSlot == newSlot) {
+      continue;
+    }
+    if (child->IsElement() && presShell) {
+      presShell->SlotAssignmentWillChange(*child->AsElement(), oldSlot, newSlot);
+    }
+    if (oldSlot) {
+      changedSlots.Insert(oldSlot);
+    }
+    if (newSlot) {
+      changedSlots.Insert(newSlot);
+    }
+  }
+
+  // Also handle children that were slotted but will be unslotted entirely
+  // (their slot name no longer matches any slot element).
+  for (nsIContent* child = host->GetFirstChild(); child;
+       child = child->GetNextSibling()) {
+    HTMLSlotElement* oldSlot = child->GetAssignedSlot();
+    if (!oldSlot) {
+      continue;
+    }
+    bool willBeSlotted = false;
+    for (auto& [nc, ns] : newAssignments) {
+      if (nc == child) {
+        willBeSlotted = true;
+        break;
       }
     }
-  }
-
-  if (oldSlot) {
-    if (SlotAssignment() == SlotAssignmentMode::Named) {
-      oldSlot->RemoveAssignedNode(aElementOrText);
-      // Don't need to EnqueueSlotChangeEvent for Manual slots because it
-      // needs to be done in tree order, so
-      // HTMLSlotElement::Assign will handle it explicitly.
-      oldSlot->EnqueueSlotChangeEvent();
-    } else {
-      oldSlot->RemoveManuallyAssignedNode(aElementOrText);
+    if (!willBeSlotted) {
+      if (child->IsElement() && presShell) {
+        presShell->SlotAssignmentWillChange(*child->AsElement(), oldSlot,
+                                            nullptr);
+      }
+      changedSlots.Insert(oldSlot);
     }
   }
 
-  if (assignment.mSlot) {
-    if (assignment.mIndex) {
-      assignment.mSlot->InsertAssignedNode(*assignment.mIndex, aElementOrText);
-    } else {
-      assignment.mSlot->AppendAssignedNode(aElementOrText);
+  // Step 3: For slots that will go from occupied → empty, trigger the fallback
+  // content invalidation that the per-element eager path does when removing the
+  // last assigned node.
+  for (HTMLSlotElement* slot : changedSlots) {
+    if (!slotsWithNewNodes.Contains(slot) && !slot->AssignedNodes().IsEmpty() &&
+        slot->HasChildren()) {
+      InvalidateStyleAndLayoutOnSubtree(slot);
     }
-    // Similar as above, HTMLSlotElement::Assign handles enqueuing
-    // slotchange event.
-    if (SlotAssignment() == SlotAssignmentMode::Named) {
-      assignment.mSlot->EnqueueSlotChangeEvent();
-    }
+  }
+
+  // Step 4: Clear all mAssignedNodes and rebuild in tree order.
+  for (auto iter = mSlotMap.ConstIter(); !iter.Done(); iter.Next()) {
+    // Only the first slot in each SlotArray receives named assignments.
+    iter.UserData()->ElementAt(0)->ClearAssignedNodes();
+  }
+
+  for (auto& [child, slot] : newAssignments) {
+    slot->AppendAssignedNode(*child);
+  }
+
+  // Step 5: Enqueue slotchange events for every slot whose content changed.
+  for (HTMLSlotElement* slot : changedSlots) {
+    slot->EnqueueSlotChangeEvent();
   }
 }
 

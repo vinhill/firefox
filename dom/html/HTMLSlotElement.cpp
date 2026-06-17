@@ -165,6 +165,19 @@ void HTMLSlotElement::AssignedElements(const AssignedNodesOptions& aOptions,
   }
 }
 
+Span<const RefPtr<nsINode>> HTMLSlotElement::AssignedNodes() const {
+  // Force a recalc if the shadow root was dirtied by slot attribute mutations
+  // so that callers always see a consistent view (e.g. mid-mutation JS reads).
+  if (ShadowRoot* shadow = GetContainingShadow()) {
+    if (shadow->NeedsSlotAssignmentRecalc()) {
+      // RecalcSlotAssignment is logically const from the caller's perspective
+      // (it only updates the cached mAssignedNodes state).
+      const_cast<ShadowRoot*>(shadow)->RecalcSlotAssignment();
+    }
+  }
+  return mAssignedNodes;
+}
+
 const nsTArray<nsINode*>& HTMLSlotElement::ManuallyAssignedNodes() const {
   return mManuallyAssignedNodes;
 }

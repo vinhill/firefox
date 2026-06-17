@@ -50,7 +50,7 @@ class HTMLSlotElement final : public nsGenericHTMLElement {
   void Assign(const Sequence<OwningElementOrText>& aNodes);
 
   // Helper methods
-  Span<const RefPtr<nsINode>> AssignedNodes() const { return mAssignedNodes; }
+  Span<const RefPtr<nsINode>> AssignedNodes() const;
   const nsTArray<nsINode*>& ManuallyAssignedNodes() const;
   void InsertAssignedNode(uint32_t aIndex, nsIContent&);
   void AppendAssignedNode(nsIContent&);

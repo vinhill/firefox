@@ -4540,6 +4540,7 @@ void PresShell::DoFlushPendingNotifications(mozilla::ChangesToFlush aFlush) {
                                               innerWindowID);
     PerfStats::AutoMetricRecording<PerfStats::Metric::Styling> autoRecording;
 
+    mDocument->RecalcDirtyShadowRootSlotAssignments();
     mPresContext->RestyleManager()->ProcessPendingRestyles();
     mNeedStyleFlush = false;
   }

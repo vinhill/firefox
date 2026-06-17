@@ -3384,6 +3384,12 @@ class Document : public nsINode,
   // WebIDL method for chrome code.
   void GetConnectedShadowRoots(nsTArray<RefPtr<ShadowRoot>>&) const;
 
+  void AddShadowRootNeedingSlotRecalc(ShadowRoot* aShadowRoot) {
+    mShadowRootsNeedingSlotRecalc.Insert(aShadowRoot);
+  }
+
+  void RecalcDirtyShadowRootSlotAssignments();
+
   void SynchronouslyUpdateRemoteBrowserDimensions(
       bool aIncludeInactive = false);
 
@@ -4938,6 +4944,7 @@ class Document : public nsINode,
   //
   // See ShadowRoot::Bind and ShadowRoot::Unbind.
   ShadowRootSet mComposedShadowRoots;
+  ShadowRootSet mShadowRootsNeedingSlotRecalc;
 
   using SVGUseElementSet = nsTHashSet<SVGUseElement*>;
 

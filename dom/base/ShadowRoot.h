@@ -131,6 +131,13 @@ class ShadowRoot final : public DocumentFragment, public DocumentOrShadowRoot {
   // child from the currently-assigned slot, if any.
   void MaybeUnslotHostChild(nsIContent&);
 
+  // Named-mode slot assignment can be deferred: MaybeReassignContent marks the
+  // shadow root dirty and schedules a flush; RecalcSlotAssignment rebuilds all
+  // mAssignedNodes lists in one O(n_children) tree walk.
+  void SetNeedsSlotAssignmentRecalc();
+  void RecalcSlotAssignment();
+  bool NeedsSlotAssignmentRecalc() const { return mNeedsSlotAssignmentRecalc; }
+
   // Shadow DOM v1
   Element* Host() const {
     MOZ_ASSERT(GetHost(),
@@ -404,6 +411,8 @@ class ShadowRoot final : public DocumentFragment, public DocumentOrShadowRoot {
   // Unordered array of all elements that have a part attribute in this shadow
   // tree.
   nsTArray<const Element*> mParts;
+
+  bool mNeedsSlotAssignmentRecalc = false;
 
   RefPtr<nsAtom> mReferenceTarget;
 
