@@ -9522,12 +9522,12 @@ bool nsDocShell::ShouldDoInitialAboutBlankSyncLoad(
       }
     }
 
-    // If a page opens about:blank, it will have a content principal.
-    // If it is then restored after a restart, we might not have initialized
-    // UsesOAC for it. If this is the case, do a normal load (bug 2004165).
+    // UsesOriginAgentCluster can only be initialized in the parent process.
+    // If it hasn't been initialized for this principal, fall back to the
+    // async load path which goes through DocumentChannel and lets the parent
+    // initialize it (bug 2004165, bug 2052581).
     // XXX bug 2005205 tracks removing this workaround.
-    if (aLoadState->LoadIsFromSessionHistory() &&
-        !mBrowsingContext->Group()
+    if (!mBrowsingContext->Group()
              ->UsesOriginAgentCluster(aPrincipalToInherit)
              .isSome()) {
       return false;
