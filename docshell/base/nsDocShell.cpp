@@ -9497,6 +9497,17 @@ bool nsDocShell::ShouldDoInitialAboutBlankSyncLoad(
     return false;
   }
 
+  // SH loads aren't initial, even if the docshell is new.
+  // - If an xorigin iframe navigates itself to about:blank and we reload
+  //   the parent, the iframe would otherwise do an initial load with xorigin
+  //   principal. Bug 2021375.
+  // - If a page with an initial iframe is reloaded, MaybeHandleSubframeHistory
+  //   will restore that about:blank asynchronously. Bug 2007894.
+  // XXX Bug 2037346, don't restore iframes when the parent is traversed.
+  if (aLoadState->LoadIsFromSessionHistory()) {
+    return false;
+  }
+
   if (!aPrincipalToInherit) {
     MOZ_ASSERT(
         mDocumentViewer->GetDocument()->NodePrincipal()->GetIsNullPrincipal(),
